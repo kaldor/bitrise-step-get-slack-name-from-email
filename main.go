@@ -1,20 +1,96 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 )
 
+type SlackUsersListResponse struct {
+	Ok      bool          `json:"ok"`
+	Error   string        `json:"error"`
+	Members []SlackMember `json:"members"`
+	Meta    struct {
+		NextCursor string `json:"next_cursor"`
+	} `json:"response_metadata"`
+}
+
+type SlackMember struct {
+	Name    string `json:"name"`
+	Profile struct {
+		Email string `json:"email"`
+	} `json:"profile"`
+}
+
+func loadCachedLookupTable() map[string]string {
+	return map[string]string{}
+}
+
+func updateLookupTable() (map[string]string, error) {
+	apiToken := os.Getenv("SLACK_API_KEY")
+
+	var slackResponse SlackUsersListResponse
+	lookupTable := map[string]string{}
+	for page := 0; slackResponse.Meta.NextCursor != "" || page == 0; page++ {
+		resp, err := http.PostForm("https://slack.com/api/users.list",
+			url.Values{"token": {apiToken}, "cursor": {slackResponse.Meta.NextCursor}})
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+		decoder := json.NewDecoder(resp.Body)
+		err = decoder.Decode(&slackResponse)
+		if err != nil {
+			return nil, err
+		}
+		if !slackResponse.Ok {
+			return nil, fmt.Errorf("Slack returned not ok: %s", slackResponse.Error)
+		}
+
+		fmt.Printf("Page %d returned %d members\n", page+1, len(slackResponse.Members))
+
+		for _, v := range slackResponse.Members {
+			lookupTable[v.Profile.Email] = v.Name
+		}
+	}
+	return lookupTable, nil
+}
+
+func saveLookupTableToCache(lookupTable map[string]string) {
+	// TODO Cache this stuff so we don't have to hit Slack everytime
+}
+
 func main() {
-	fmt.Println("This is the value specified for the input 'example_step_input':", os.Getenv("example_step_input"))
+	email := os.Getenv("SLACK_EMAIL")
+
+	fmt.Printf("Searching Slack for user with email address %s\n", email)
+
+	lookupTable := loadCachedLookupTable()
+	username, ok := lookupTable[email]
+	if !ok {
+		lookupTable, err := updateLookupTable()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		} else {
+			username, ok = lookupTable[email]
+			if !ok {
+				username = email
+			}
+			saveLookupTableToCache(lookupTable)
+		}
+	}
+	fmt.Println(username)
 
 	//
 	// --- Step Outputs: Export Environment Variables for other Steps:
 	// You can export Environment Variables for other Steps with
 	//  envman, which is automatically installed by `bitrise setup`.
 	// A very simple example:
-	cmdLog, err := exec.Command("bitrise", "envman", "add", "--key", "EXAMPLE_STEP_OUTPUT", "--value", "the value you want to share").CombinedOutput()
+	cmdLog, err := exec.Command("bitrise", "envman", "add", "--key", "SLACK_NAME", "--value", username).CombinedOutput()
 	if err != nil {
 		fmt.Printf("Failed to expose output with envman, error: %#v | output: %s", err, cmdLog)
 		os.Exit(1)

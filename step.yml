@@ -44,18 +44,16 @@ host_os_tags:
 type_tags:
   - notification
 
-is_requires_admin_user: true
-is_always_run: false
+is_requires_admin_user: false
+is_always_run: true
 is_skippable: false
 run_if: ""
 
 deps:
   brew:
   - name: git
-  - name: wget
   apt_get:
   - name: git
-  - name: wget
 
 
 toolkit:
@@ -64,24 +62,29 @@ toolkit:
 
 
 inputs:
-  - example_step_input: Default Value - you can leave this empty if you want to
+  - SLACK_EMAIL: $SLACK_EMAIL
     opts:
-      title: "Example Step Input"
-      summary: Summary. No more than 2-3 sentences.
+      title: "Email address of desired Slack user"
+      summary: Will use this email to find a Slack user in directory
       description: |
-        Description of this input.
-
-        Can be Markdown formatted text.
+        Email to use in search of Slack member in directory
+      is_expand: true
+      is_required: true
+      value_options: []
+  - SLACK_API_KEY: $SLACK_API_KEY
+    opts:
+      title: "Slack API key to use"
+      summary: Slack API key that will be used to fetch users.list
+      description: |
+        OAuth token must have both the users:read and users:read.email permission scopes
       is_expand: true
       is_required: true
       value_options: []
 
 outputs:
-  - EXAMPLE_STEP_OUTPUT:
+  - SLACK_NAME:
     opts:
-      title: "Example Step Output"
-      summary: Summary. No more than 2-3 sentences.
+      title: "Slack name of user found"
+      summary: Slack name of user found or email if not found
       description: |
-        Description of this output.
-
-        Can be Markdown formatted text.
+        Exported env var with Slack name of user found or email if not found
