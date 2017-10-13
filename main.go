@@ -3,10 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
+
+	"github.com/texttheater/golang-levenshtein/levenshtein"
 )
 
 type SlackUsersListResponse struct {
@@ -21,19 +24,20 @@ type SlackUsersListResponse struct {
 type SlackMember struct {
 	Name    string `json:"name"`
 	Profile struct {
-		Email string `json:"email"`
+		RealName string `json:"real_name"`
+		Email    string `json:"email"`
 	} `json:"profile"`
 }
 
-func loadCachedLookupTable() map[string]string {
-	return map[string]string{}
+func loadCachedLookupTable() map[string]SlackMember {
+	return map[string]SlackMember{}
 }
 
-func updateLookupTable() (map[string]string, error) {
+func updateLookupTable() (map[string]SlackMember, error) {
 	apiToken := os.Getenv("SLACK_API_KEY")
 
 	var slackResponse SlackUsersListResponse
-	lookupTable := map[string]string{}
+	lookupTable := map[string]SlackMember{}
 	for page := 0; slackResponse.Meta.NextCursor != "" || page == 0; page++ {
 		resp, err := http.PostForm("https://slack.com/api/users.list",
 			url.Values{"token": {apiToken}, "cursor": {slackResponse.Meta.NextCursor}})
@@ -53,14 +57,36 @@ func updateLookupTable() (map[string]string, error) {
 		fmt.Printf("Page %d returned %d members\n", page+1, len(slackResponse.Members))
 
 		for _, v := range slackResponse.Members {
-			lookupTable[v.Profile.Email] = v.Name
+			lookupTable[v.Profile.Email] = v
 		}
 	}
 	return lookupTable, nil
 }
 
-func saveLookupTableToCache(lookupTable map[string]string) {
+func saveLookupTableToCache(lookupTable map[string]SlackMember) {
 	// TODO Cache this stuff so we don't have to hit Slack everytime
+}
+
+func findClosestMatch(email string, members []SlackMember) string {
+	fmt.Println("Using fuzzy matching")
+	var minIndex = -1
+	var minDistance = math.MaxInt64
+	for i, member := range members {
+		emailToName := levenshtein.DistanceForStrings([]rune(email), []rune(member.Name), levenshtein.DefaultOptions)
+		emailToRealName := levenshtein.DistanceForStrings([]rune(email), []rune(member.Profile.RealName), levenshtein.DefaultOptions)
+		distance := emailToName * emailToRealName
+		fmt.Printf("%s username: %d full name: %d total: %d\n", member.Name, emailToName, emailToRealName, distance)
+		if distance < minDistance {
+			minDistance = distance
+			minIndex = i
+		}
+	}
+	if minIndex > 0 {
+		fmt.Printf("SELECTED %s distance: %d\n", members[minIndex].Name, minDistance)
+		return members[minIndex].Name
+	} else {
+		return email
+	}
 }
 
 func main() {
@@ -69,16 +95,25 @@ func main() {
 	fmt.Printf("Searching Slack for user with email address %s\n", email)
 
 	lookupTable := loadCachedLookupTable()
-	username, ok := lookupTable[email]
+	member, ok := lookupTable[email]
+
+	var username string
+
 	if !ok {
 		lookupTable, err := updateLookupTable()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		} else {
-			username, ok = lookupTable[email]
+			member, ok = lookupTable[email]
 			if !ok {
-				username = email
+				var members = []SlackMember{}
+				for _, v := range lookupTable {
+					members = append(members, v)
+				}
+				username = findClosestMatch(email, members)
+			} else {
+				username = member.Name
 			}
 			saveLookupTableToCache(lookupTable)
 		}
