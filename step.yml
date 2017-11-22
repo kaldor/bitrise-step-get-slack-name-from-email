@@ -70,7 +70,6 @@ inputs:
         Email to use in search of Slack member in directory
       is_expand: true
       is_required: true
-      value_options: []
   - SLACK_API_KEY: $SLACK_API_KEY
     opts:
       title: "Slack API key to use"
@@ -79,7 +78,6 @@ inputs:
         OAuth token must have both the users:read and users:read.email permission scopes
       is_expand: true
       is_required: true
-      value_options: []
 
 outputs:
   - SLACK_NAME:
