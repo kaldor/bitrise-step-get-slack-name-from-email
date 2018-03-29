@@ -19,17 +19,16 @@ type SlackUsersListResponse struct {
 }
 
 type SlackMember struct {
-	Name    string `json:"name"`
-	Profile struct {
-		Email string `json:"email"`
+	UserName    string `json:"name"`
+	Deactivated bool   `json:"deleted"`
+	Profile     struct {
+		RealName    string `json:"real_name"`
+		DisplayName string `json:"display_name"`
+		Email       string `json:"email"`
 	} `json:"profile"`
 }
 
-func loadCachedLookupTable() map[string]string {
-	return map[string]string{}
-}
-
-func updateLookupTable() (map[string]string, error) {
+func loadLookupTable() (map[string]string, error) {
 	apiToken := os.Getenv("SLACK_API_KEY")
 
 	var slackResponse SlackUsersListResponse
@@ -53,14 +52,10 @@ func updateLookupTable() (map[string]string, error) {
 		fmt.Printf("Page %d returned %d members\n", page+1, len(slackResponse.Members))
 
 		for _, v := range slackResponse.Members {
-			lookupTable[v.Profile.Email] = v.Name
+			lookupTable[v.Profile.Email] = v.Profile.DisplayName
 		}
 	}
 	return lookupTable, nil
-}
-
-func saveLookupTableToCache(lookupTable map[string]string) {
-	// TODO Cache this stuff so we don't have to hit Slack everytime
 }
 
 func main() {
@@ -68,19 +63,17 @@ func main() {
 
 	fmt.Printf("Searching Slack for user with email address %s\n", email)
 
-	lookupTable := loadCachedLookupTable()
-	username, ok := lookupTable[email]
-	if !ok {
-		lookupTable, err := updateLookupTable()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		} else {
-			username, ok = lookupTable[email]
-			if !ok {
-				username = email
-			}
-			saveLookupTableToCache(lookupTable)
+	var username string
+
+	lookupTable, err := loadLookupTable()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	} else {
+		var ok bool
+		username, ok = lookupTable[email]
+		if !ok {
+			username = email
 		}
 	}
 	fmt.Println(username)
