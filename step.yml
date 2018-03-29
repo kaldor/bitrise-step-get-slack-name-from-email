@@ -62,7 +62,7 @@ toolkit:
 
 
 inputs:
-  - SLACK_EMAIL: $SLACK_EMAIL
+  - SLACK_EMAIL:
     opts:
       title: "Email address of desired Slack user"
       summary: Will use this email to find a Slack user in directory
