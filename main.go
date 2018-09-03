@@ -19,12 +19,10 @@ type SlackUsersListResponse struct {
 }
 
 type SlackMember struct {
-	UserName    string `json:"name"`
+	ID          string `json:"id"`
 	Deactivated bool   `json:"deleted"`
 	Profile     struct {
-		RealName    string `json:"real_name"`
-		DisplayName string `json:"display_name"`
-		Email       string `json:"email"`
+		Email string `json:"email"`
 	} `json:"profile"`
 }
 
@@ -52,7 +50,7 @@ func loadLookupTable() (map[string]string, error) {
 		fmt.Printf("Page %d returned %d members\n", page+1, len(slackResponse.Members))
 
 		for _, v := range slackResponse.Members {
-			lookupTable[v.Profile.Email] = v.Profile.DisplayName
+			lookupTable[v.Profile.Email] = v.ID
 		}
 	}
 	return lookupTable, nil
